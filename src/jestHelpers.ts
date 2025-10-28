@@ -250,7 +250,7 @@ export async function stopMatterbridgeEnvironment(
   expect(server.lifecycle.isOnline).toBeFalsy();
 
   // stop the mDNS service
-  await server.env.get(MdnsService)[Symbol.asyncDispose]();
+  await server.env.get(MdnsService)?.close();
 
   // Stop the matter storage
   // @ts-expect-error - access to private member for testing
@@ -499,7 +499,7 @@ export async function stopServerNode(server: ServerNode<ServerNode.RootEndpoint>
   expect(server.lifecycle.isOnline).toBeFalsy();
 
   // stop the mDNS service
-  await server.env.get(MdnsService)[Symbol.asyncDispose]();
+  await server.env.get(MdnsService)?.close();
 
   // Ensure the queue is empty and pause 100ms
   await flushAsync();
