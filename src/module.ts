@@ -2637,7 +2637,14 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
             // Change temperature between 16°C and 24°C
             temperatureOccupancy = temperatureOccupancy + 100 > 2400 ? 1600 : temperatureOccupancy + 100;
             await this.thermoAutoOccupancy?.setAttribute(ThermostatCluster.id, 'localTemperature', temperatureOccupancy, this.thermoAutoOccupancy.log);
-            await this.thermoAutoOccupancy?.setAttribute(ThermostatCluster.id, 'outdoorTemperature', temperatureOccupancy + 100, this.thermoAutoOccupancy.log);
+            // Change outdoor temperature between -2°C and 16°C for winter
+            let outdoorTemp = this.thermoAutoOccupancy?.getAttribute(ThermostatCluster.id, 'outdoorTemperature', this.thermoAutoOccupancy.log);
+            if (isValidNumber(outdoorTemp, -200, 1600)) {
+              outdoorTemp = outdoorTemp + 100 > 1600 ? -200 : outdoorTemp + 100;
+            } else {
+              outdoorTemp = -200;
+            }
+            await this.thermoAutoOccupancy?.setAttribute(ThermostatCluster.id, 'outdoorTemperature', outdoorTemp, this.thermoAutoOccupancy.log);
             // Toggle occupancy
             const occupancyValue = this.thermoAutoOccupancy?.getAttribute(Thermostat.Cluster.id, 'occupancy', this.thermoAutoOccupancy.log) as { occupied: boolean };
             if (isValidObject(occupancyValue, 1)) {
@@ -2646,6 +2653,15 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
               this.thermoAutoOccupancy?.log.info(`Set thermostat occupancy to ${occupancyValue.occupied}`);
             }
           }
+
+          // Change outdoor temperature between -2°C and 16°C for thermoAutoPresets
+          let outdoorTempPresets = this.thermoAutoPresets?.getAttribute(ThermostatCluster.id, 'outdoorTemperature', this.thermoAutoPresets?.log);
+          if (isValidNumber(outdoorTempPresets, -200, 1600)) {
+            outdoorTempPresets = outdoorTempPresets + 100 > 1600 ? -200 : outdoorTempPresets + 100;
+          } else {
+            outdoorTempPresets = -200;
+          }
+          await this.thermoAutoPresets?.setAttribute(ThermostatCluster.id, 'outdoorTemperature', outdoorTempPresets, this.thermoAutoPresets?.log);
 
           // istanbul ignore next if cause no runningState attribute before 3.3.3
           if (this.thermoAuto?.hasAttributeServer(ThermostatCluster.id, 'thermostatRunningState')) {
