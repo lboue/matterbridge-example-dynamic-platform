@@ -227,6 +227,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
   coverLift: MatterbridgeEndpoint | undefined;
   coverLiftTilt: MatterbridgeEndpoint | undefined;
   lock: MatterbridgeEndpoint | undefined;
+  lockUser: MatterbridgeEndpoint | undefined;
   thermoAuto: MatterbridgeEndpoint | undefined;
   thermoAutoOccupancy: MatterbridgeEndpoint | undefined;
   thermoAutoPresets: MatterbridgeEndpoint | undefined;
@@ -1056,6 +1057,57 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
         this.lock?.log.info(`actuatorEnabled set to ${actuatorEnabled}`);
       },
       this.lock.log,
+    );
+
+    // *********************** Create a lock device with User + PINCredential feature ***********************
+    this.lockUser = new MatterbridgeEndpoint([doorLockDevice, bridgedNode, powerSource], { id: 'LockUser' }, this.config.debug)
+      .createDefaultIdentifyClusterServer()
+      .createDefaultBridgedDeviceBasicInformationClusterServer('Lock (User+PIN)', 'LOC00023', 0xfff1, 'Matterbridge', 'Matterbridge Lock')
+      .createUserPinDoorLockClusterServer()
+      .createDefaultPowerSourceRechargeableBatteryClusterServer(30)
+      .addRequiredClusterServers();
+
+    this.lockUser = await this.addDevice(this.lockUser);
+
+    // The cluster attributes are set by MatterbridgeDoorLockUserServer
+    this.lockUser?.addCommandHandler('identify', async ({ request: { identifyTime } }) => {
+      this.lockUser?.log.info(`Command identify called identifyTime:${identifyTime}`);
+    });
+    this.lockUser?.addCommandHandler('lockDoor', async () => {
+      this.lockUser?.log.info('Command lockDoor called');
+    });
+    this.lockUser?.addCommandHandler('unlockDoor', async () => {
+      this.lockUser?.log.info('Command unlockDoor called');
+    });
+    this.lockUser?.addCommandHandler('setUser', async ({ request }) => {
+      this.lockUser?.log.info(`Command setUser called for user ${request.userIndex} name ${request.userName ?? 'N/A'}`);
+    });
+    this.lockUser?.addCommandHandler('getUser', async ({ request }) => {
+      this.lockUser?.log.info(`Command getUser called for user ${request.userIndex}`);
+    });
+    this.lockUser?.addCommandHandler('clearUser', async ({ request }) => {
+      this.lockUser?.log.info(`Command clearUser called for ${request.userIndex === 0xfffe ? 'all users' : 'user ' + request.userIndex}`);
+    });
+    this.lockUser?.addCommandHandler('setCredential', async ({ request }) => {
+      this.lockUser?.log.info(`Command setCredential called type ${request.credential.credentialType} index ${request.credential.credentialIndex} for user ${request.userIndex ?? 'new'}`);
+    });
+    this.lockUser?.addCommandHandler('getCredentialStatus', async ({ request }) => {
+      this.lockUser?.log.info(`Command getCredentialStatus called type ${request.credential.credentialType} index ${request.credential.credentialIndex}`);
+    });
+    this.lockUser?.addCommandHandler('clearCredential', async ({ request }) => {
+      this.lockUser?.log.info(`Command clearCredential called ${request.credential ? `type ${request.credential.credentialType} index ${request.credential.credentialIndex}` : 'all'}`);
+    });
+    await this.lockUser?.subscribeAttribute(
+      DoorLock.Cluster.id,
+      'operatingMode',
+      (value) => {
+        const lookupOperatingMode = ['Normal', 'Vacation', 'Privacy', 'NoRemoteLockUnlock', 'Passage'];
+        this.lockUser?.log.info('Subscribe operatingMode called with:', lookupOperatingMode[value]);
+        const actuatorEnabled = value !== DoorLock.OperatingMode.NoRemoteLockUnlock;
+        this.lockUser?.setAttribute(DoorLock.Cluster.id, 'actuatorEnabled', actuatorEnabled);
+        this.lockUser?.log.info(`actuatorEnabled set to ${actuatorEnabled}`);
+      },
+      this.lockUser.log,
     );
 
     // *********************** Create a thermostat with AutoMode device ***********************
@@ -2878,6 +2930,28 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
           }
         },
         60 * 1000 + 500,
+      );
+    }
+
+    // Set lockUser to Locked
+    await this.lockUser?.setAttribute(DoorLock.Cluster.id, 'lockState', DoorLock.LockState.Locked, this.lockUser.log);
+    this.lockUser?.log.info('Set lockUser initial lockState to Locked');
+    if (this.config.useInterval) {
+      // Toggle lockUser every minute
+      this.addInterval(
+        async () => {
+          const status = this.lockUser?.getAttribute(DoorLock.Cluster.id, 'lockState', this.lockUser.log);
+          if (isValidNumber(status, DoorLock.LockState.Locked, DoorLock.LockState.Unlocked)) {
+            await this.lockUser?.setAttribute(
+              DoorLock.Cluster.id,
+              'lockState',
+              status === DoorLock.LockState.Locked ? DoorLock.LockState.Unlocked : DoorLock.LockState.Locked,
+              this.lockUser.log,
+            );
+            this.lockUser?.log.info(`Set lockUser lockState to ${status === DoorLock.LockState.Locked ? 'Locked' : 'Unlocked'}`);
+          }
+        },
+        60 * 1000 + 550,
       );
     }
 
