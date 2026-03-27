@@ -1064,7 +1064,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       .createDefaultIdentifyClusterServer()
       .createDefaultBridgedDeviceBasicInformationClusterServer('Lock (User+PIN)', 'LOC00023', 0xfff1, 'Matterbridge', 'Matterbridge Lock')
       .createUserPinDoorLockClusterServer()
-      .createDefaultPowerSourceRechargeableBatteryClusterServer(30)
+      .createDefaultPowerSourceRechargeableBatteryClusterServer(80)
       .addRequiredClusterServers();
 
     this.lockUser = await this.addDevice(this.lockUser);
