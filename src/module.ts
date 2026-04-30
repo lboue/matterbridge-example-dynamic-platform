@@ -132,7 +132,7 @@ import {
   TotalVolatileOrganicCompoundsConcentrationMeasurement,
   WindowCovering,
 } from 'matterbridge/matter/clusters';
-import { getEnumDescription, isValidBoolean, isValidNumber, isValidObject, isValidString } from 'matterbridge/utils';
+import { isValidBoolean, isValidNumber, isValidObject, isValidString } from 'matterbridge/utils';
 
 /**
  * Convert an illuminance value in lux to the Matter encoded representation used by the
@@ -223,10 +223,10 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
   outletEnergyApparent: MatterbridgeEndpoint | undefined;
   smartOutlet: MatterbridgeEndpoint | undefined;
   smartBridgedOutlet: MatterbridgeEndpoint | undefined;
+
   coverLift: MatterbridgeEndpoint | undefined;
   coverLiftTilt: MatterbridgeEndpoint | undefined;
   lock: MatterbridgeEndpoint | undefined;
-  userPinLock: MatterbridgeEndpoint | undefined;
   thermoAuto: MatterbridgeEndpoint | undefined;
   thermoAutoOccupancy: MatterbridgeEndpoint | undefined;
   thermoAutoPresets: MatterbridgeEndpoint | undefined;
@@ -286,9 +286,9 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
     super(matterbridge, log, config);
 
     // Verify that Matterbridge is the correct version
-    if (typeof this.verifyMatterbridgeVersion !== 'function' || !this.verifyMatterbridgeVersion('3.7.2')) {
+    if (this.verifyMatterbridgeVersion === undefined || typeof this.verifyMatterbridgeVersion !== 'function' || !this.verifyMatterbridgeVersion('3.7.0')) {
       throw new Error(
-        `This plugin requires Matterbridge version >= "3.7.2". Please update Matterbridge from ${this.matterbridge.matterbridgeVersion} to the latest version in the frontend.`,
+        `This plugin requires Matterbridge version >= "3.7.0". Please update Matterbridge from ${this.matterbridge.matterbridgeVersion} to the latest version in the frontend.`,
       );
     }
 
@@ -1036,68 +1036,26 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
     this.lock = await this.addDevice(this.lock);
 
     // The cluster attributes are set by MatterbridgeDoorLockServer
-    this.lock?.addCommandHandler('Identify.identify', async ({ request: { identifyTime } }) => {
+    this.lock?.addCommandHandler('identify', async ({ request: { identifyTime } }) => {
       this.lock?.log.info(`Command identify called identifyTime:${identifyTime}`);
     });
-    this.lock?.addCommandHandler('DoorLock.lockDoor', async () => {
+    this.lock?.addCommandHandler('lockDoor', async () => {
       this.lock?.log.info('Command lockDoor called');
     });
-    this.lock?.addCommandHandler('DoorLock.unlockDoor', async () => {
+    this.lock?.addCommandHandler('unlockDoor', async () => {
       this.lock?.log.info('Command unlockDoor called');
     });
     await this.lock?.subscribeAttribute(
       DoorLock.Cluster.id,
       'operatingMode',
       (value) => {
-        this.lock?.log.info(`Subscribe operatingMode called with: ${getEnumDescription(DoorLock.OperatingMode, value)}`);
+        const lookupOperatingMode = ['Normal', 'Vacation', 'Privacy', 'NoRemoteLockUnlock', 'Passage'];
+        this.lock?.log.info('Subscribe operatingMode called with:', lookupOperatingMode[value]);
+        const actuatorEnabled = value !== DoorLock.OperatingMode.NoRemoteLockUnlock;
+        this.lock?.setAttribute(DoorLock.Cluster.id, 'actuatorEnabled', actuatorEnabled);
+        this.lock?.log.info(`actuatorEnabled set to ${actuatorEnabled}`);
       },
       this.lock.log,
-    );
-
-    // *********************** Create a lock device with User and Pin features ***********************
-    this.userPinLock = new MatterbridgeEndpoint([doorLockDevice, bridgedNode, powerSource], { id: 'UserPinLock' }, this.config.debug)
-      .createDefaultIdentifyClusterServer()
-      .createDefaultBridgedDeviceBasicInformationClusterServer('Lock with User and Pin', 'LUP00070', 0xfff1, 'Matterbridge', 'Matterbridge Lock')
-      .createUserPinDoorLockClusterServer()
-      .createDefaultPowerSourceRechargeableBatteryClusterServer(95)
-      .addRequiredClusterServers();
-
-    this.userPinLock = await this.addDevice(this.userPinLock);
-    await this.userPinLock?.setAttribute(PowerSource.Complete, 'batChargeState', PowerSource.BatChargeState.IsCharging);
-
-    // The cluster attributes are set by MatterbridgeDoorLockServer
-    this.userPinLock?.addCommandHandler('Identify.identify', async ({ request: { identifyTime } }) => {
-      this.userPinLock?.log.info(`Command identify called identifyTime:${identifyTime}`);
-    });
-    this.userPinLock?.addCommandHandler('DoorLock.lockDoor', async () => {
-      this.userPinLock?.log.info('Command lockDoor called');
-    });
-    this.userPinLock?.addCommandHandler('DoorLock.unlockDoor', async () => {
-      this.userPinLock?.log.info('Command unlockDoor called');
-    });
-    await this.userPinLock?.subscribeAttribute(
-      DoorLock.Cluster,
-      'operatingMode',
-      (value) => {
-        this.userPinLock?.log.info(`Subscribe operatingMode called with: ${getEnumDescription(DoorLock.OperatingMode, value)}`);
-      },
-      this.userPinLock.log,
-    );
-    await this.userPinLock?.subscribeAttribute(
-      DoorLock.Complete,
-      'wrongCodeEntryLimit',
-      (value) => {
-        this.userPinLock?.log.info(`Subscribe wrongCodeEntryLimit called with: ${value}`);
-      },
-      this.userPinLock.log,
-    );
-    await this.userPinLock?.subscribeAttribute(
-      DoorLock.Complete,
-      'userCodeTemporaryDisableTime',
-      (value) => {
-        this.userPinLock?.log.info(`Subscribe userCodeTemporaryDisableTime called with: ${value}`);
-      },
-      this.userPinLock.log,
     );
 
     // *********************** Create a thermostat with AutoMode device ***********************
@@ -1137,7 +1095,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAuto?.log.info(`Command setpointRaiseLower called with mode: ${lookupSetpointAdjustMode[mode]} amount: ${amount / 10}`);
     });
     await this.thermoAuto?.subscribeAttribute(
-      Thermostat.Complete,
+      Thermostat.CompleteInstance,
       'systemMode',
       (value) => {
         const lookupSystemMode = ['Off', 'Auto', '', 'Cool', 'Heat', 'EmergencyHeat', 'Precooling', 'FanOnly', 'Dry', 'Sleep'];
@@ -1146,7 +1104,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAuto.log,
     );
     await this.thermoAuto?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Heating),
       'occupiedHeatingSetpoint',
       (value) => {
         this.thermoAuto?.log.info('Subscribe occupiedHeatingSetpoint called with:', value / 100);
@@ -1154,7 +1112,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAuto.log,
     );
     await this.thermoAuto?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Cooling),
       'occupiedCoolingSetpoint',
       (value) => {
         this.thermoAuto?.log.info('Subscribe occupiedCoolingSetpoint called with:', value / 100);
@@ -1173,7 +1131,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
     this.thermoAutoOccupancy = await this.addDevice(this.thermoAutoOccupancy);
 
     await this.thermoAutoOccupancy?.subscribeAttribute(
-      Thermostat.Complete,
+      Thermostat.Cluster.with(Thermostat.Feature.Heating),
       'systemMode',
       (value) => {
         const lookupSystemMode = ['Off', 'Auto', '', 'Cool', 'Heat', 'EmergencyHeat', 'Precooling', 'FanOnly', 'Dry', 'Sleep'];
@@ -1182,7 +1140,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAutoOccupancy.log,
     );
     await this.thermoAutoOccupancy?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Heating),
       'occupiedHeatingSetpoint',
       (value) => {
         this.thermoAutoOccupancy?.log.info('Subscribe occupiedHeatingSetpoint called with:', value / 100);
@@ -1190,7 +1148,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAutoOccupancy.log,
     );
     await this.thermoAutoOccupancy?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Cooling),
       'occupiedCoolingSetpoint',
       (value) => {
         this.thermoAutoOccupancy?.log.info('Subscribe occupiedCoolingSetpoint called with:', value / 100);
@@ -1198,7 +1156,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAutoOccupancy.log,
     );
     await this.thermoAutoOccupancy?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Heating, Thermostat.Feature.Occupancy),
       'unoccupiedHeatingSetpoint',
       (value) => {
         this.thermoAutoOccupancy?.log.info('Subscribe unoccupiedHeatingSetpoint called with:', value / 100);
@@ -1206,7 +1164,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAutoOccupancy.log,
     );
     await this.thermoAutoOccupancy?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Cooling, Thermostat.Feature.Occupancy),
       'unoccupiedCoolingSetpoint',
       (value) => {
         this.thermoAutoOccupancy?.log.info('Subscribe unoccupiedCoolingSetpoint called with:', value / 100);
@@ -1354,7 +1312,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAutoPresets?.log.info(`Command setActivePresetRequest called with presetHandle: ${presetHandle ? `0x${Buffer.from(presetHandle).toString('hex')}` : 'null'}`);
     });
     await this.thermoAutoPresets?.subscribeAttribute(
-      Thermostat.Complete,
+      Thermostat.CompleteInstance,
       'systemMode',
       (newValue, oldValue) => {
         const lookupSystemMode = ['Off', 'Auto', '', 'Cool', 'Heat', 'EmergencyHeat', 'Precooling', 'FanOnly', 'Dry', 'Sleep'];
@@ -1363,7 +1321,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAutoPresets.log,
     );
     await this.thermoAutoPresets?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Heating),
       'occupiedHeatingSetpoint',
       (newValue, oldValue) => {
         this.thermoAutoPresets?.log.info(`Subscribe occupiedHeatingSetpoint called with: ${newValue / 100} (old value: ${oldValue / 100})`);
@@ -1371,7 +1329,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAutoPresets.log,
     );
     await this.thermoAutoPresets?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Cooling),
       'occupiedCoolingSetpoint',
       (newValue, oldValue) => {
         this.thermoAutoPresets?.log.info(`Subscribe occupiedCoolingSetpoint called with: ${newValue / 100} (old value: ${oldValue / 100})`);
@@ -1379,7 +1337,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAutoPresets.log,
     );
     await this.thermoAutoPresets?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Heating, Thermostat.Feature.Cooling, Thermostat.Feature.Presets),
       'activePresetHandle',
       (newValue, oldValue) => {
         this.thermoAutoPresets?.log.info(
@@ -1389,7 +1347,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoAutoPresets.log,
     );
     await this.thermoAutoPresets?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Heating, Thermostat.Feature.Cooling, Thermostat.Feature.Presets),
       'presets',
       (newValue, oldValue) => {
         this.thermoAutoPresets?.log.info(`Subscribe presets called with: ${debugStringify(newValue)} (old value: ${debugStringify(oldValue)})`);
@@ -1435,7 +1393,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoHeat?.log.info(`Command identify called effectIdentifier ${effectIdentifier} effectVariant ${effectVariant}`);
     });
     await this.thermoHeat?.subscribeAttribute(
-      Thermostat.Complete,
+      Thermostat.Cluster.with(Thermostat.Feature.Heating),
       'systemMode',
       (value) => {
         const lookupSystemMode = ['Off', 'Auto', '', 'Cool', 'Heat', 'EmergencyHeat', 'Precooling', 'FanOnly', 'Dry', 'Sleep'];
@@ -1444,7 +1402,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoHeat.log,
     );
     await this.thermoHeat?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Heating),
       'occupiedHeatingSetpoint',
       (value) => {
         this.thermoHeat?.log.info('Subscribe occupiedHeatingSetpoint called with:', value / 100);
@@ -1470,7 +1428,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoCool?.log.info(`Command identify called effectIdentifier ${effectIdentifier} effectVariant ${effectVariant}`);
     });
     await this.thermoCool?.subscribeAttribute(
-      Thermostat.Complete,
+      Thermostat.Cluster.with(Thermostat.Feature.Cooling),
       'systemMode',
       (value) => {
         const lookupSystemMode = ['Off', 'Auto', '', 'Cool', 'Heat', 'EmergencyHeat', 'Precooling', 'FanOnly', 'Dry', 'Sleep'];
@@ -1479,7 +1437,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.thermoCool.log,
     );
     await this.thermoCool?.subscribeAttribute(
-      Thermostat.Cluster.id,
+      Thermostat.Cluster.with(Thermostat.Feature.Cooling),
       'occupiedCoolingSetpoint',
       (value) => {
         this.thermoCool?.log.info('Subscribe occupiedCoolingSetpoint called with:', value / 100);
@@ -1543,7 +1501,11 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       (newValue: number | null, oldValue: number | null, context) => {
         this.airPurifier?.log.info(`Percent setting changed from ${oldValue} to ${newValue} context: ${context.offline === true ? 'offline' : 'online'}`);
         if (context.offline === true) return; // Do not set attributes when offline
-        if (isValidNumber(newValue, 0, 100)) this.airPurifier?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.airPurifier?.log);
+        if (isValidNumber(newValue, 0, 100)) {
+          this.airPurifier?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.airPurifier?.log);
+          const fanMode = newValue === 0 ? FanControl.FanMode.Off : newValue <= 33 ? FanControl.FanMode.Low : newValue <= 66 ? FanControl.FanMode.Medium : FanControl.FanMode.High;
+          this.airPurifier?.setAttribute(FanControl.Cluster.id, 'fanMode', fanMode, this.airPurifier?.log);
+        }
       },
       this.airPurifier.log,
     );
@@ -1590,7 +1552,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       this.valve?.log.info(`Command identify called identifyTime:${identifyTime}`);
     });
 
-    // *********************** Create a default off low medium high auto fan device with Auto and Step features ***********************
+    // *********************** Create a default off low medium high auto fan device ***********************
     this.fanDefault = new MatterbridgeEndpoint([fanDevice, bridgedNode, powerSource], { id: 'Fan off low medium high auto' }, this.config.debug)
       .createDefaultBridgedDeviceBasicInformationClusterServer('Fan', 'FAN00030', 0xfff1, 'Matterbridge', 'Matterbridge Fan')
       .createDefaultPowerSourceWiredClusterServer()
@@ -1620,11 +1582,10 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
           this.fanDefault?.setAttribute(FanControl.Cluster.id, 'percentSetting', 100, this.fanDefault?.log);
           this.fanDefault?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 100, this.fanDefault?.log);
         } else if (newValue === FanControl.FanMode.On) {
-          this.fanDefault?.setAttribute(FanControl.Cluster.id, 'fanMode', FanControl.FanMode.High, this.fanDefault?.log);
           this.fanDefault?.setAttribute(FanControl.Cluster.id, 'percentSetting', 100, this.fanDefault?.log);
           this.fanDefault?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 100, this.fanDefault?.log);
         } else if (newValue === FanControl.FanMode.Auto) {
-          this.fanDefault?.setAttribute(FanControl.Cluster.id, 'percentSetting', null, this.fanDefault?.log);
+          this.fanDefault?.setAttribute(FanControl.Cluster.id, 'percentSetting', 50, this.fanDefault?.log);
           this.fanDefault?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 50, this.fanDefault?.log);
         }
       },
@@ -1636,12 +1597,16 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       (newValue: number | null, oldValue: number | null, context) => {
         this.fanDefault?.log.info(`Percent setting changed from ${oldValue} to ${newValue} context: ${context.offline === true ? 'offline' : 'online'}`);
         if (context.offline === true) return; // Do not set attributes when offline
-        if (isValidNumber(newValue, 0, 100)) this.fanDefault?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.fanDefault?.log);
+        if (isValidNumber(newValue, 0, 100)) {
+          this.fanDefault?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.fanDefault?.log);
+          const fanMode = newValue === 0 ? FanControl.FanMode.Off : newValue <= 33 ? FanControl.FanMode.Low : newValue <= 66 ? FanControl.FanMode.Medium : FanControl.FanMode.High;
+          this.fanDefault?.setAttribute(FanControl.Cluster.id, 'fanMode', fanMode, this.fanDefault?.log);
+        }
       },
       this.fanDefault.log,
     );
 
-    // *********************** Create a off low medium high fan device with no features ***********************
+    // *********************** Create a base fan device ***********************
     this.fanBase = new MatterbridgeEndpoint([fanDevice, bridgedNode, powerSource], { id: 'Fan off low medium high' }, this.config.debug)
       .createDefaultBridgedDeviceBasicInformationClusterServer('Fan base', 'FBA00031', 0xfff1, 'Matterbridge', 'Matterbridge Fan')
       .createDefaultPowerSourceWiredClusterServer()
@@ -1671,11 +1636,10 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
           this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentSetting', 100, this.fanBase?.log);
           this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 100, this.fanBase?.log);
         } else if (newValue === FanControl.FanMode.On) {
-          this.fanBase?.setAttribute(FanControl.Cluster.id, 'fanMode', FanControl.FanMode.High, this.fanBase?.log);
           this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentSetting', 100, this.fanBase?.log);
           this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 100, this.fanBase?.log);
         } else if (newValue === FanControl.FanMode.Auto) {
-          this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentSetting', null, this.fanBase?.log);
+          this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentSetting', 50, this.fanBase?.log);
           this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 50, this.fanBase?.log);
         }
       },
@@ -1687,12 +1651,16 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       (newValue: number | null, oldValue: number | null, context) => {
         this.fanBase?.log.info(`Percent setting changed from ${oldValue} to ${newValue} context: ${context.offline === true ? 'offline' : 'online'}`);
         if (context.offline === true) return; // Do not set attributes when offline
-        if (isValidNumber(newValue, 0, 100)) this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.fanBase?.log);
+        if (isValidNumber(newValue, 0, 100)) {
+          this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.fanBase?.log);
+          const fanMode = newValue === 0 ? FanControl.FanMode.Off : newValue <= 33 ? FanControl.FanMode.Low : newValue <= 66 ? FanControl.FanMode.Medium : FanControl.FanMode.High;
+          this.fanBase?.setAttribute(FanControl.Cluster.id, 'fanMode', fanMode, this.fanBase?.log);
+        }
       },
       this.fanBase.log,
     );
 
-    // *********************** Create a off high fan device with no features ***********************
+    // *********************** Create a On High fan device ***********************
     this.fanOnHigh = new MatterbridgeEndpoint([fanDevice, bridgedNode, powerSource], { id: 'Fan off high' }, this.config.debug)
       .createDefaultBridgedDeviceBasicInformationClusterServer('Fan off high', 'FOH00032', 0xfff1, 'Matterbridge', 'Matterbridge Fan')
       .createDefaultPowerSourceWiredClusterServer()
@@ -1715,10 +1683,6 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
         } else if (newValue === FanControl.FanMode.High) {
           this.fanOnHigh?.setAttribute(FanControl.Cluster.id, 'percentSetting', 100, this.fanOnHigh?.log);
           this.fanOnHigh?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 100, this.fanOnHigh?.log);
-        } else if (newValue === FanControl.FanMode.On) {
-          this.fanBase?.setAttribute(FanControl.Cluster.id, 'fanMode', FanControl.FanMode.High, this.fanBase?.log);
-          this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentSetting', 100, this.fanBase?.log);
-          this.fanBase?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 100, this.fanBase?.log);
         }
       },
       this.fanOnHigh.log,
@@ -1733,12 +1697,13 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
           if (newValue > 0) newValue = 100; // OnOff fan control only supports 0 and 100
           this.fanOnHigh?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.fanOnHigh?.log);
           this.fanOnHigh?.setAttribute(FanControl.Cluster.id, 'percentSetting', newValue, this.fanOnHigh?.log);
+          this.fanOnHigh?.setAttribute(FanControl.Cluster.id, 'fanMode', newValue === 0 ? FanControl.FanMode.Off : FanControl.FanMode.High, this.fanOnHigh?.log);
         }
       },
       this.fanOnHigh.log,
     );
 
-    // ******************** Create a Off Low Med High Auto fan device with features MultiSpeed, Auto, Step, Rocking, Wind, AirflowDirection ********************
+    // ******************** Create a complete fan device ********************
     this.fanComplete = new MatterbridgeEndpoint([fanDevice, bridgedNode, powerSource], { id: 'Fan complete' }, this.config.debug)
       .createDefaultBridgedDeviceBasicInformationClusterServer('Fan complete', 'FCO00033', 0xfff1, 'Matterbridge', 'Matterbridge Fan')
       .createDefaultPowerSourceWiredClusterServer()
@@ -1768,11 +1733,10 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
           this.fanComplete?.setAttribute(FanControl.Cluster.id, 'percentSetting', 100, this.fanComplete?.log);
           this.fanComplete?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 100, this.fanComplete?.log);
         } else if (newValue === FanControl.FanMode.On) {
-          this.fanComplete?.setAttribute(FanControl.Cluster.id, 'fanMode', FanControl.FanMode.High, this.fanComplete?.log);
           this.fanComplete?.setAttribute(FanControl.Cluster.id, 'percentSetting', 100, this.fanComplete?.log);
           this.fanComplete?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 100, this.fanComplete?.log);
         } else if (newValue === FanControl.FanMode.Auto) {
-          this.fanComplete?.setAttribute(FanControl.Cluster.id, 'percentSetting', null, this.fanComplete?.log);
+          this.fanComplete?.setAttribute(FanControl.Cluster.id, 'percentSetting', 50, this.fanComplete?.log);
           this.fanComplete?.setAttribute(FanControl.Cluster.id, 'percentCurrent', 50, this.fanComplete?.log);
         }
       },
@@ -1784,7 +1748,11 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       (newValue: number | null, oldValue: number | null, context) => {
         this.fanComplete?.log.info(`Percent setting changed from ${oldValue} to ${newValue} context: ${context.offline === true ? 'offline' : 'online'}`);
         if (context.offline === true) return; // Do not set attributes when offline
-        if (isValidNumber(newValue, 0, 100)) this.fanComplete?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.fanComplete?.log);
+        if (isValidNumber(newValue, 0, 100)) {
+          this.fanComplete?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.fanComplete?.log);
+          const fanMode = newValue === 0 ? FanControl.FanMode.Off : newValue <= 33 ? FanControl.FanMode.Low : newValue <= 66 ? FanControl.FanMode.Medium : FanControl.FanMode.High;
+          this.fanComplete?.setAttribute(FanControl.Cluster.id, 'fanMode', fanMode, this.fanComplete?.log);
+        }
       },
       this.fanComplete?.log,
     );
@@ -2333,7 +2301,11 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       (newValue: number | null, oldValue: number | null, context) => {
         this.airConditioner?.log.info(`Percent setting changed from ${oldValue} to ${newValue} context: ${context.offline === true ? 'offline' : 'online'}`);
         if (context.offline === true) return; // Do not set attributes when offline
-        if (isValidNumber(newValue, 0, 100)) this.airConditioner?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.airConditioner?.log);
+        if (isValidNumber(newValue, 0, 100)) {
+          this.airConditioner?.setAttribute(FanControl.Cluster.id, 'percentCurrent', newValue, this.airConditioner?.log);
+          const fanMode = newValue === 0 ? FanControl.FanMode.Off : newValue <= 33 ? FanControl.FanMode.Low : newValue <= 66 ? FanControl.FanMode.Medium : FanControl.FanMode.High;
+          this.airConditioner?.setAttribute(FanControl.Cluster.id, 'fanMode', fanMode, this.airConditioner?.log);
+        }
       },
       this.airConditioner?.log,
     );
@@ -2383,7 +2355,6 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
     this.intervals.push({ interval, callback });
     return interval;
   }
-
   async executeIntervals(times: number, pauseTime: number = 100) {
     for (let i = 0; i < times; i++) {
       for (const { callback } of this.intervals) {
@@ -2394,7 +2365,6 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       }
     }
   }
-
   clearIntervals() {
     this.intervals.forEach(({ interval }) => clearInterval(interval));
     this.intervals = [];
