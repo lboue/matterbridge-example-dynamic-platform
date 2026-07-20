@@ -37,6 +37,8 @@ import {
   mountedDimmableLoadControl,
   dimmablePlugInUnit,
   doorLock,
+  electricalEnergyTariff,
+  electricalMeter,
   electricalSensor,
   extendedColorLight,
   fan,
@@ -47,6 +49,7 @@ import {
   lightSensor,
   MatterbridgeDynamicPlatform,
   MatterbridgeEndpoint,
+  meterReferencePoint,
   modeSelect,
   occupancySensor,
   onOffLight,
@@ -92,6 +95,8 @@ import {
 import { type AnsiLogger, debugStringify } from 'matterbridge/logger';
 import {
   ClosureTag,
+  CommodityTariffChronologyTag,
+  CommodityTariffCommodityTag,
   CommonAreaNamespaceTag,
   CommonLocationTag,
   CommonNumberTag,
@@ -102,6 +107,7 @@ import {
   UINT32_MAX,
 } from 'matterbridge/matter';
 // import { ThermostatServer } from 'matterbridge/matter/behaviors';
+import { CommodityMeteringServer, CommodityPriceServer } from 'matterbridge/matter/behaviors';
 import {
   AirQuality,
   BooleanState,
@@ -110,6 +116,7 @@ import {
   CarbonMonoxideConcentrationMeasurement,
   ClosureControl,
   ColorControl,
+  CommodityPrice,
   Descriptor,
   DeviceEnergyManagement,
   DoorLock,
@@ -145,6 +152,7 @@ import {
   TotalVolatileOrganicCompoundsConcentrationMeasurement,
   WindowCovering,
 } from 'matterbridge/matter/clusters';
+import { TariffUnit } from 'matterbridge/matter/types';
 import { fireAndForget, getEnumDescription, isValidBoolean, isValidNumber, isValidObject, isValidString } from 'matterbridge/utils';
 
 /**
@@ -188,6 +196,20 @@ function matterToLux(value: number): number {
   const v = Math.min(value, 0xfffe);
   const lux = Math.pow(10, v / 10000);
   return Math.round(lux < 0 ? 0 : lux);
+}
+
+/**
+ * Build a simulated Octopus Agile style half-hourly commodity price period for the CommodityPrice cluster. Prices
+ * are randomised between 5p and 35p per kWh and expressed as GBP * 10000 (e.g. 1850 = £0.185 = 18.5p), matching a
+ * Currency of `{ currency: 826 (GBP), decimalPoints: 4 }`.
+ *
+ * @param {number} offsetSlots Number of 30 minute slots from the current slot (0 = the slot containing now).
+ * @returns {{ periodStart: number; periodEnd: number; price: number }} The simulated price period.
+ */
+function simulateAgilePricePeriod(offsetSlots: number): { periodStart: number; periodEnd: number; price: number } {
+  const slot = 30 * 60;
+  const periodStart = Math.floor(Date.now() / 1000 / slot) * slot + offsetSlots * slot;
+  return { periodStart, periodEnd: periodStart + slot, price: Math.round((5 + Math.random() * 30) * 100) };
 }
 
 export type DynamicPlatformConfig = PlatformConfig & {
@@ -276,6 +298,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
   extractorHood: MatterbridgeEndpoint | undefined;
   solarPower: SolarPower | undefined;
   batteryStorage: MatterbridgeEndpoint | undefined;
+  meterReferencePoint: MatterbridgeEndpoint | undefined;
   heatPump: MatterbridgeEndpoint | undefined;
   microwaveOven: MatterbridgeEndpoint | undefined;
   oven: Oven | undefined;
@@ -2236,6 +2259,45 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
     );
     this.batteryStorage = await this.addDevice(this.batteryStorage);
 
+    // *********************** Create a Meter Reference Point (Electrical Meter + Electrical Energy Tariff) **************************
+    // See https://tomasmcguinness.com/2026/05/14/building-a-matter-meter-reference-point-device-for-testing/
+    // and https://tomasmcguinness.com/2026/01/10/exposing-octopus-agile-prices-through-the-new-matter-commodity-tariff-cluster/
+    this.meterReferencePoint = new MatterbridgeEndpoint([meterReferencePoint, bridgedNode, powerSource], { id: 'MeterReferencePoint' }, this.config.debug)
+      .createDefaultBridgedDeviceBasicInformationClusterServer('Meter Reference Point', 'MRP00074', 0xfff1, 'Matterbridge', 'Matterbridge Meter Reference Point')
+      .createDefaultPowerSourceWiredClusterServer()
+      .addRequiredClusterServers();
+    fireAndForget(this.meterReferencePoint.addFixedLabel('composed', 'Compound device'), this.log, `Failed to add fixed label`);
+
+    // The Meter Reference Point composes at least one Electrical Meter child endpoint (14.8. Electrical Meter Device Type)
+    const meterReferencePointMeter = this.meterReferencePoint
+      .addChildDeviceType('ElectricalMeter', electricalMeter)
+      .createDefaultElectricalPowerMeasurementClusterServer(246_000, 2_000, 492_000, 50_000) // 246 volt, 2 ampere, 492 watt, 50 Hz
+      .createDefaultElectricalEnergyMeasurementClusterServer(0, 0);
+    // CommodityMetering is not yet wrapped by a createDefault*ClusterServer() helper in Matterbridge, so the underlying matter.js server behavior is added directly.
+    meterReferencePointMeter.behaviors.require(CommodityMeteringServer, {
+      meteredQuantity: [{ tariffComponentIDs: [], quantity: 0 }],
+      meteredQuantityTimestamp: Math.floor(Date.now() / 1000),
+      tariffUnit: TariffUnit.KWh,
+      maximumMeteredQuantities: 1,
+    });
+    meterReferencePointMeter.addRequiredClusterServers();
+
+    // The Meter Reference Point composes at least one Electrical Energy Tariff child endpoint (14.7. Electrical Energy Tariff Device Type)
+    const meterReferencePointTariff = this.meterReferencePoint.addChildDeviceType('ElectricalEnergyTariff', electricalEnergyTariff, {
+      tagList: [getSemtag(CommodityTariffChronologyTag.Current), getSemtag(CommodityTariffCommodityTag.ElectricalEnergy)],
+    });
+    // CommodityPrice is not yet wrapped by a createDefault*ClusterServer() helper in Matterbridge, so the underlying matter.js server behavior is added directly.
+    // Simulates an Octopus Agile style dynamic half-hourly price, like https://tomasmcguinness.com/2026/01/10/exposing-octopus-agile-prices-through-the-new-matter-commodity-tariff-cluster/
+    meterReferencePointTariff.behaviors.require(CommodityPriceServer.with(CommodityPrice.Feature.Forecasting), {
+      tariffUnit: TariffUnit.KWh,
+      currency: { currency: 826, decimalPoints: 4 }, // GBP, price expressed in units of 1/10000 GBP
+      currentPrice: simulateAgilePricePeriod(0),
+      priceForecast: [1, 2, 3, 4].map((offsetSlots) => simulateAgilePricePeriod(offsetSlots)),
+    });
+    meterReferencePointTariff.addRequiredClusterServers();
+
+    this.meterReferencePoint = await this.addDevice(this.meterReferencePoint);
+
     // *********************** Create an HeatPump **************************
     this.heatPump = new HeatPump(
       'Heat Pump',
@@ -3306,6 +3368,43 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
           // console.error('Exiting generic switch interval triggered', this.genericSwitchLastEvent);
         },
         60 * 1000 + 1900,
+      );
+    }
+
+    if (this.config.useInterval) {
+      // Simulate live Electrical Meter readings and a rotating Octopus Agile style tariff price every minute
+      this.addInterval(
+        async () => {
+          const meter = this.meterReferencePoint?.getChildEndpointById('ElectricalMeter');
+          if (meter) {
+            const voltage = 246_000 + Math.round(Math.random() * 4_000); // 246 volt .. 250 volt
+            const current = 1_000 + Math.round(Math.random() * 9_000); // 1 ampere .. 10 ampere
+            meter.log.info(`Set Meter Reference Point electrical meter voltage:${voltage} current:${current}`);
+            await meter.setAttribute(ElectricalPowerMeasurement.id, 'voltage', voltage, meter.log);
+            await meter.setAttribute(ElectricalPowerMeasurement.id, 'activeCurrent', current, meter.log);
+            await meter.setAttribute(ElectricalPowerMeasurement.id, 'activePower', Math.round((voltage * current) / 1_000_000), meter.log);
+
+            const energy = meter.getAttribute(ElectricalEnergyMeasurement, 'cumulativeEnergyImported', meter.log);
+            if (isValidObject(energy, 1)) {
+              if (typeof energy.energy === 'bigint') energy.energy += 50_000n;
+              else energy.energy += 50_000;
+              await meter.setAttribute(ElectricalEnergyMeasurement.id, 'cumulativeEnergyImported', energy, meter.log);
+            }
+          }
+
+          const tariff = this.meterReferencePoint?.getChildEndpointById('ElectricalEnergyTariff');
+          if (tariff) {
+            tariff.log.info(`Rotate Meter Reference Point tariff price`);
+            await tariff.setAttribute(CommodityPrice.id, 'currentPrice', simulateAgilePricePeriod(0), tariff.log);
+            await tariff.setAttribute(
+              CommodityPrice.id,
+              'priceForecast',
+              [1, 2, 3, 4].map((offsetSlots) => simulateAgilePricePeriod(offsetSlots)),
+              tariff.log,
+            );
+          }
+        },
+        60 * 1000 + 2000,
       );
     }
   }
