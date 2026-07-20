@@ -36,7 +36,7 @@ If you like this project and find it useful, please consider giving it a star on
 ### Added
 
 - [platform]: Add `closureGarageDoor` device.
-- [platform]: Add `meterReferencePoint` device composed of an Electrical Meter (Electrical Power/Energy Measurement and Commodity Metering) and an Electrical Energy Tariff endpoint (Commodity Price with a simulated Octopus Agile style dynamic price).
+- [platform]: Add `meterReferencePoint` device composed of an Electrical Meter (Electrical Power/Energy Measurement and Commodity Metering) and an Electrical Energy Tariff endpoint (Commodity Price with a simulated dynamic price).
 
 <a href="https://www.buymeacoffee.com/luligugithub"><img src="https://matterbridge.io/assets/bmc-button.svg" alt="Buy me a coffee" width="80"></a>
 
