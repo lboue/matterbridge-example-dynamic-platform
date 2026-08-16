@@ -34,6 +34,7 @@ If you like this project and find it useful, please consider giving it a star on
 ### Added
 
 - [platform]: Add `closureSlidingGate` device.
+- [platform]: Add `closureRoofWindow` device with a rotating Sash panel and the Ventilation feature.
 
 <a href="https://www.buymeacoffee.com/luligugithub"><img src="https://matterbridge.io/assets/bmc-button.svg" alt="Buy me a coffee" width="80"></a>
 

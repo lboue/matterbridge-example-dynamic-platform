@@ -96,6 +96,7 @@ import {
   ClosureCoveringTag,
   ClosurePanelTag,
   ClosureTag,
+  ClosureWindowTag,
   CommonAreaNamespaceTag,
   CommonLocationTag,
   CommonNumberTag,
@@ -231,6 +232,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
   closureGarageDoor: Closure | undefined;
   closureVenetianBlind: Closure | undefined;
   closureSlidingGate: MatterbridgeEndpoint | undefined;
+  closureRoofWindow: Closure | undefined;
   select: MatterbridgeEndpoint | undefined;
   climate: MatterbridgeEndpoint | undefined;
   switch: MatterbridgeEndpoint | undefined;
@@ -686,6 +688,97 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       attributes.countdownTime = 0;
       clearTimeout(closureSlidingGateMoveTimeout);
       closureSlidingGateMoveTimeout = undefined;
+    });
+
+    // *********************** Create a roof window Closure device with a rotating Sash panel and Ventilation ***********************
+    // matterbridge#609/#610 add ClosureOptions.features so the Closure single-class device can opt into
+    // ClosureControl features beyond Positioning + MotionLatching + Speed, instead of having to hand-roll the
+    // endpoint like the sliding gate above. A Velux-style roof window commonly exposes a dedicated ventilation
+    // position — cracked open for airflow, distinct from fully open for cleaning access — so enable
+    // Feature.Ventilation here. The pivoting sash itself is modeled as a single Rotate panel
+    // (ClosureDimension.Feature.Rotation, rotating around a horizontal axis centered on the panel).
+    this.closureRoofWindow = new Closure('Roof Window', 'ROW000074', {
+      tagList: [getSemtag(ClosureTag.Window), getSemtag(ClosureWindowTag.Roof)],
+      features: [ClosureControl.Feature.Ventilation],
+    });
+    const closureRoofWindowSash = this.closureRoofWindow.addPanel('Sash', [getSemtag(ClosurePanelTag.Rotate)], 'tilt', {
+      rotationAxis: ClosureDimension.RotationAxis.CenteredHorizontal,
+    });
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    this.closureRoofWindow = (await this.addDevice(this.closureRoofWindow)) as Closure | undefined;
+    let closureRoofWindowMoveTimeout: NodeJS.Timeout | undefined;
+
+    // Maps a ClosureControl target position to the Sash panel's percent100ths travel, matching the venetian
+    // blind demo convention: FullyOpen/FullyClosed map to 0/10000, Ventilation to a mid-travel value.
+    const closureRoofWindowTargetPercent = (position: ClosureControl.TargetPosition): number => {
+      if (position === ClosureControl.TargetPosition.MoveToFullyOpen) return 0;
+      if (position === ClosureControl.TargetPosition.MoveToFullyClosed) return 10000;
+      return 5000; // Ventilation position: demo mid-travel value (sash cracked open for airflow).
+    };
+
+    // MoveTo is a parent ClosureControl command; the mainState and overallTargetState attributes are set by MatterbridgeClosureControlServer.
+    // Reuses closureTargetToCurrentPosition (declared above for the garage door), so MoveToVentilationPosition is exercised here too.
+    this.closureRoofWindow?.addCommandHandler('ClosureControl.moveTo', ({ request: { position, latch, speed }, attributes }) => {
+      this.closureRoofWindow?.log.info(`Command moveTo called position:${position} latch:${latch} speed:${speed}`);
+      attributes.countdownTime = 1; // We simulate a 1 second movement for demo purposes, so set the countdownTime to 1 second.
+      clearTimeout(closureRoofWindowMoveTimeout);
+      /* v8 ignore start -- Demo timer simulates the Sash panel reaching its resolved target and rolls the result back up into the parent. */
+      closureRoofWindowMoveTimeout = setTimeout(() => {
+        void (async (): Promise<void> => {
+          const targetState = this.closureRoofWindow?.getAttribute(ClosureControl, 'overallTargetState');
+          if (targetState === undefined || targetState === null || targetState.position === undefined || targetState.position === null) return;
+          const sashState = { position: closureRoofWindowTargetPercent(targetState.position), latch: targetState.latch ?? true, speed: targetState.speed };
+          await closureRoofWindowSash.setAttribute(ClosureDimension, 'targetState', sashState, closureRoofWindowSash.log);
+          await closureRoofWindowSash.setAttribute(ClosureDimension, 'currentState', sashState, closureRoofWindowSash.log);
+          await this.closureRoofWindow?.setState(
+            {
+              position: closureTargetToCurrentPosition(targetState.position),
+              latch: targetState.latch,
+              speed: targetState.speed,
+              secureState: targetState.position === ClosureControl.TargetPosition.MoveToFullyClosed && targetState.latch === true,
+            },
+            targetState,
+            ClosureControl.MainState.Stopped,
+            0,
+            [],
+          );
+          await this.closureRoofWindow?.triggerMovementCompleted();
+        })();
+      }, 1000).unref();
+      /* v8 ignore stop */
+    });
+
+    // Stop is a parent ClosureControl command
+    this.closureRoofWindow?.addCommandHandler('ClosureControl.stop', ({ attributes }) => {
+      // MatterbridgeClosureControlServer sets the mainState to ClosureControl.MainState.Stopped after this call
+      this.closureRoofWindow?.log.info('Command stop called');
+      attributes.countdownTime = 0;
+      clearTimeout(closureRoofWindowMoveTimeout);
+      closureRoofWindowMoveTimeout = undefined;
+    });
+
+    // Direct controller commands to the Sash panel arrive through ClosureDimension.setTarget/step; simulate it reaching target.
+    const simulateClosureRoofWindowSashReachingTarget = (): void => {
+      /* v8 ignore start -- Demo timer simulates panel movement completion. */
+      setTimeout(() => {
+        void (async (): Promise<void> => {
+          const targetState = closureRoofWindowSash.getAttribute(ClosureDimension, 'targetState');
+          if (targetState === undefined || targetState === null) return;
+          await closureRoofWindowSash.setAttribute(ClosureDimension, 'currentState', targetState, closureRoofWindowSash.log);
+        })();
+      }, 1000).unref();
+      /* v8 ignore stop */
+    };
+    closureRoofWindowSash.addCommandHandler('ClosureDimension.setTarget', ({ request: { position, latch, speed } }) => {
+      closureRoofWindowSash.log.info(`Command setTarget called position:${position} latch:${latch} speed:${speed}`);
+      simulateClosureRoofWindowSashReachingTarget();
+    });
+    // Step behaves like setTarget for simulation purposes: MatterbridgeClosureDimensionServer resolves the
+    // requested step into a new targetState.position, so the same reach-target simulation applies here too.
+    closureRoofWindowSash.addCommandHandler('ClosureDimension.step', ({ request: { direction, numberOfSteps, speed } }) => {
+      closureRoofWindowSash.log.info(`Command step called direction:${direction} numberOfSteps:${numberOfSteps} speed:${speed}`);
+      simulateClosureRoofWindowSashReachingTarget();
     });
 
     // *********************** Create a compound climate device ***********************
