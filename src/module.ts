@@ -2609,7 +2609,6 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       absMaxPower: 3_000_000, // 3 kWh
     });
     this.batteryStorage = await this.addDevice(this.batteryStorage);
-
     // *********************** Create a Combined Battery Storage + Solar Power System *****
     // Implements Figure 22 from Matter Device Library Specification (23-27351)
     // This is a Battery Storage device (0x0018) with DC-connected Solar Power device (0x0017)
@@ -2643,7 +2642,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
 
     // EP1 child 1: Power Source DC (MANDATORY per spec 14.4.6 revision 2)
     const bsc1st_ps = this.batteryStorageCombined.addChildDeviceType('Grid Power Source', powerSource)
-      .createDefaultPowerSourceClusterServer(PowerSource.PowerSourceStatus.Active)
+      .createDefaultPowerSourceWiredClusterServer()
       .addRequiredClusterServers();
 
     // EP1 child 2: Electrical Sensor AC (MANDATORY per spec 14.4.6)
@@ -2660,7 +2659,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
         3600,
         'LiFePO4',
         1,
-        PowerSource.BatReplaceability.NonUserReplaceable
+        PowerSource.BatReplaceability.UserReplaceable
       )
       .addRequiredClusterServers();
 
@@ -2736,7 +2735,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
 
     // EP3 child 1: Power Source DC (MANDATORY per spec 14.3.6)
     const sp_ps = this.solarPowerCombined.addChildDeviceType('DC Input Power Source', powerSource)
-      .createDefaultPowerSourceClusterServer(PowerSource.PowerSourceStatus.Active)
+      .createDefaultPowerSourceWiredClusterServer()
       .addRequiredClusterServers();
 
     // EP3 child 2: Electrical Sensor DC (MANDATORY per spec 14.3.6, DirectCurrent feature)
@@ -2770,11 +2769,8 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
 
     this.solarPowerCombined = (await this.addDevice(this.solarPowerCombined)) as SolarPower | undefined;
 
-    // Assemble aggregated system: EP0 contains EP1, EP2, EP3
-    if (this.solarBatteryRoot && this.batteryStorageCombined && this.temperatureSensorCombined && this.solarPowerCombined) {
-      this.solarBatteryRoot.addChildEndpoint(this.batteryStorageCombined as MatterbridgeEndpoint);
-      this.solarBatteryRoot.addChildEndpoint(this.temperatureSensorCombined);
-      this.solarBatteryRoot.addChildEndpoint(this.solarPowerCombined as MatterbridgeEndpoint);
+    // Register aggregator root
+    if (this.solarBatteryRoot) {
       this.solarBatteryRoot = await this.addDevice(this.solarBatteryRoot);
     }
 
@@ -2790,22 +2786,22 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
           const solarOutput = Math.floor(3000 * (1 + Math.sin(this.solarBatterySimulationPhase)));
           const solarCurrent = Math.floor((solarOutput / 400) * 1000);
 
-          fireAndForget(this.solarPowerCombined?.setAttribute(ElectricalPowerMeasurement, 'activePower', solarOutput, this.solarPowerCombined?.log), this.log, 'Failed to set solar power');
-          fireAndForget(this.solarPowerCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', solarCurrent, this.solarPowerCombined?.log), this.log, 'Failed to set solar current');
+              // await this.solarPowerCombined?.setAttribute(ElectricalPowerMeasurement, 'activePower', solarOutput, this.solarPowerCombined?.log), this.log, 'Failed to set solar power');
+              // await this.solarPowerCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', solarCurrent, this.solarPowerCombined?.log), this.log, 'Failed to set solar current');
 
           // Simulate battery charge/discharge
           const batteryPercent = Math.floor(50 + 25 * Math.sin(this.solarBatteryBatteryPhase));
           const chargeCurrent = Math.floor(27000 * Math.max(0, Math.sin(this.solarBatterySimulationPhase)));
 
-          fireAndForget(this.batteryStorageCombined?.setAttribute(PowerSource, 'batPercentRemaining', batteryPercent, this.batteryStorageCombined?.log), this.log, 'Failed to set battery percent');
-          fireAndForget(this.batteryStorageCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', chargeCurrent, this.batteryStorageCombined?.log), this.log, 'Failed to set charge current');
+              // await this.batteryStorageCombined?.setAttribute(PowerSource, 'batPercentRemaining', batteryPercent, this.batteryStorageCombined?.log), this.log, 'Failed to set battery percent');
+              // await this.batteryStorageCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', chargeCurrent, this.batteryStorageCombined?.log), this.log, 'Failed to set charge current');
 
           // Simulate temperature variations
           const batteryTempC = 27.5 + 7.5 * Math.sin(this.solarBatteryBatteryPhase);
-          fireAndForget(this.temperatureSensorCombined?.setAttribute(TemperatureMeasurement, 'measuredValue', Math.floor(batteryTempC * 100), this.temperatureSensorCombined?.log), this.log, 'Failed to set battery temperature');
+              // await this.temperatureSensorCombined?.setAttribute(TemperatureMeasurement, 'measuredValue', Math.floor(batteryTempC * 100), this.temperatureSensorCombined?.log), this.log, 'Failed to set battery temperature');
 
           const inverterTempC = 30 + 15 * Math.sin(this.solarBatterySimulationPhase);
-          fireAndForget(this.temperatureSensorCombined?.setAttribute(TemperatureMeasurement, 'measuredValue', Math.floor(inverterTempC * 100), this.temperatureSensorCombined?.log), this.log, 'Failed to set inverter temperature');
+              // await this.temperatureSensorCombined?.setAttribute(TemperatureMeasurement, 'measuredValue', Math.floor(inverterTempC * 100), this.temperatureSensorCombined?.log), this.log, 'Failed to set inverter temperature');
         },
         5000,
       );
