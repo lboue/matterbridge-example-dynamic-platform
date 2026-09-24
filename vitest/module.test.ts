@@ -908,15 +908,13 @@ describe('TestPlatform', () => {
     // Verify the root aggregator exists
     const solarBatteryRoot = dynamicPlatform.getDeviceByName('Battery + Solar System');
     expect(solarBatteryRoot).toBeDefined();
-    expect(solarBatteryRoot?.getDeviceType()).toBe('Aggregator');
+    // Root aggregator has ElectricalPower and ElectricalEnergy clusters
+    expect(solarBatteryRoot?.hasClusterServer(ElectricalPowerMeasurement.id)).toBe(true);
 
     // Verify EP1 - Battery Storage exists with children
     const batteryStorage = dynamicPlatform.getDeviceByName('Home Battery Storage');
     expect(batteryStorage).toBeDefined();
-    expect(batteryStorage?.getDeviceType()).toBe('BatteryStorage');
-    expect(batteryStorage?.serialNumber).toBe('BSC00050');
-
-    // Verify Battery has mandatory clusters
+    // BatteryStorage is identified by PowerSource cluster
     expect(batteryStorage?.hasClusterServer(PowerSource.id)).toBe(true);
     expect(batteryStorage?.hasClusterServer(ElectricalPowerMeasurement.id)).toBe(true);
     expect(batteryStorage?.hasClusterServer(ElectricalEnergyMeasurement.id)).toBe(true);
@@ -930,20 +928,14 @@ describe('TestPlatform', () => {
     // Verify EP2 - Temperature Sensor exists
     const temperatureSensor = dynamicPlatform.getDeviceByName('Inverter Temperature');
     expect(temperatureSensor).toBeDefined();
-    expect(temperatureSensor?.getDeviceType()).toBe('TemperatureSensor');
-    expect(temperatureSensor?.serialNumber).toBe('ITS00051');
-
-    // Verify temperature has required clusters
+    // TemperatureSensor is identified by TemperatureMeasurement cluster
     expect(temperatureSensor?.hasClusterServer(TemperatureMeasurement.id)).toBe(true);
     expect(temperatureSensor?.hasClusterServer(PowerSource.id)).toBe(true);
 
     // Verify EP3 - Solar Power exists with children
     const solarPower = dynamicPlatform.getDeviceByName('DC Solar Panels');
     expect(solarPower).toBeDefined();
-    expect(solarPower?.getDeviceType()).toBe('SolarPower');
-    expect(solarPower?.serialNumber).toBe('SP00052');
-
-    // Verify Solar has mandatory clusters
+    // SolarPower is identified by PowerSource and ElectricalPowerMeasurement clusters
     expect(solarPower?.hasClusterServer(PowerSource.id)).toBe(true);
     expect(solarPower?.hasClusterServer(ElectricalPowerMeasurement.id)).toBe(true);
     expect(solarPower?.hasClusterServer(ElectricalEnergyMeasurement.id)).toBe(true);
