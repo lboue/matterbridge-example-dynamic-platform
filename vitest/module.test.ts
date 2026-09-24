@@ -27,18 +27,8 @@ import {
   PowerSource,
   TemperatureMeasurement,
   Thermostat,
-ClosureControl,
-  ClosureDimension,
-  ColorControl,
-  DoorLock,
-  FanControl,
-  Identify,
-  KeypadInput,
-  LevelControl,
-  ModeSelect,
-  OnOff,
-  Thermostat,
-} from 'matterbridge/matter/clusters';mport {
+} from 'matterbridge/matter/clusters';
+import {
   addMatterbridge,
   createServerNode,
   createTestEnvironment,
