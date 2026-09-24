@@ -2664,12 +2664,6 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       )
       .addRequiredClusterServers();
 
-    // Set mandatory battery attributes per spec 14.4.6.2
-    void this.batteryStorageCombined.setAttribute(PowerSource, 'batVoltage', 48_000, this.batteryStorageCombined.log);
-    void this.batteryStorageCombined.setAttribute(PowerSource, 'batCapacity', 100_000, this.batteryStorageCombined.log);
-    void this.batteryStorageCombined.setAttribute(PowerSource, 'batTimeToFullCharge', 3600, this.batteryStorageCombined.log);
-    void this.batteryStorageCombined.setAttribute(PowerSource, 'batChargingCurrent', 27_000, this.batteryStorageCombined.log);
-
     // EP1 child 4: Electrical Sensor DC (MANDATORY per spec 14.4.6 revision 2)
     this.batteryStorageCombined.addChildDeviceType('DC Battery Sensor', electricalSensor)
       .createDefaultElectricalPowerMeasurementClusterServer(48_000, 0, 0, 3_000)
@@ -2685,6 +2679,15 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       .addRequiredClusterServers();
 
     this.batteryStorageCombined = await this.addDevice(this.batteryStorageCombined);
+
+    // Set mandatory battery attributes per spec 14.4.6.2 on the Battery Pack child endpoint
+    // (the root only has the wired PowerSource feature; the Battery feature lives on this child).
+    // This must run after addDevice() activates the endpoint tree, otherwise setAttribute fails.
+    const batteryPack = this.batteryStorageCombined?.getChildEndpointById('BatteryPack');
+    void batteryPack?.setAttribute(PowerSource, 'batVoltage', 48_000, batteryPack?.log);
+    void batteryPack?.setAttribute(PowerSource, 'batCapacity', 100_000, batteryPack?.log);
+    void batteryPack?.setAttribute(PowerSource, 'batTimeToFullCharge', 3600, batteryPack?.log);
+    void batteryPack?.setAttribute(PowerSource, 'batChargingCurrent', 27_000, batteryPack?.log);
 
     // EP2 - Temperature Sensor (OPTIONAL system monitoring)
     this.temperatureSensorCombined = new MatterbridgeEndpoint([temperatureSensor, bridgedNode], { id: 'InverterTemperatureSensor' }, this.config.debug)
@@ -2760,9 +2763,13 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
           await this.solarPowerCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', solarCurrent, this.solarPowerCombined?.log);
 
           // Simulate battery charge/discharge
+          // batPercentRemaining lives on the 'Battery Pack' child endpoint (root only has the wired PowerSource feature)
+          // and is stored in the Matter 0-200 range, so the 0-100 percent value must be doubled.
           const batteryPercent = Math.floor(50 + 25 * Math.sin(this.solarBatteryBatteryPhase));
           const chargeCurrent = Math.floor(27000 * Math.max(0, Math.sin(this.solarBatterySimulationPhase)));
-          await this.batteryStorageCombined?.setAttribute(PowerSource, 'batPercentRemaining', batteryPercent, this.batteryStorageCombined?.log);
+          await this.batteryStorageCombined
+            ?.getChildEndpointById('BatteryPack')
+            ?.setAttribute(PowerSource, 'batPercentRemaining', batteryPercent * 2, this.batteryStorageCombined?.log);
           await this.batteryStorageCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', chargeCurrent, this.batteryStorageCombined?.log);
 
           // Simulate temperature variations

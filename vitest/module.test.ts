@@ -919,9 +919,11 @@ describe('TestPlatform', () => {
     expect(batteryStorage?.hasClusterServer(ElectricalPowerMeasurement.id)).toBe(true);
     expect(batteryStorage?.hasClusterServer(ElectricalEnergyMeasurement.id)).toBe(true);
 
-    // Verify Battery attributes (batPercentRemaining lives on the 'Battery Pack' child endpoint, not the root)
-    const batPercent = batteryStorage?.getChildEndpointById('BatteryPack')?.getAttribute(PowerSource.id, 'batPercentRemaining');
-    expect(batPercent).toBeDefined();
+    // Verify Battery attributes (batPercentRemaining lives on the 'Battery Pack' child endpoint, not the root,
+    // and is stored in the Matter 0-200 range, hence the /2 below).
+    const batPercentRaw = batteryStorage?.getChildEndpointById('BatteryPack')?.getAttribute(PowerSource.id, 'batPercentRemaining');
+    expect(batPercentRaw).toBeDefined();
+    const batPercent = (batPercentRaw as number) / 2;
     expect(batPercent).toBeGreaterThanOrEqual(50);
     expect(batPercent).toBeLessThanOrEqual(75);
 
@@ -930,7 +932,8 @@ describe('TestPlatform', () => {
     expect(temperatureSensor).toBeDefined();
     // TemperatureSensor is identified by TemperatureMeasurement cluster
     expect(temperatureSensor?.hasClusterServer(TemperatureMeasurement.id)).toBe(true);
-    expect(temperatureSensor?.hasClusterServer(PowerSource.id)).toBe(true);
+    // PowerSource lives on the 'Sensor Power' child endpoint, not the root
+    expect(temperatureSensor?.getChildEndpointById('SensorPower')?.hasClusterServer(PowerSource.id)).toBe(true);
 
     // Verify EP3 - Solar Power exists with children
     const solarPower = dynamicPlatform.getDeviceByName('DC Solar Panels');
