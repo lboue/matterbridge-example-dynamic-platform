@@ -2641,18 +2641,18 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
     });
 
     // EP1 child 1: Power Source DC (MANDATORY per spec 14.4.6 revision 2)
-    const bsc1st_ps = this.batteryStorageCombined.addChildDeviceType('Grid Power Source', powerSource)
+    this.batteryStorageCombined.addChildDeviceType('Grid Power Source', powerSource)
       .createDefaultPowerSourceWiredClusterServer()
       .addRequiredClusterServers();
 
     // EP1 child 2: Electrical Sensor AC (MANDATORY per spec 14.4.6)
-    const bsc1st_es = this.batteryStorageCombined.addChildDeviceType('AC Output Sensor', electricalSensor)
+    this.batteryStorageCombined.addChildDeviceType('AC Output Sensor', electricalSensor)
       .createDefaultElectricalPowerMeasurementClusterServer(230_000, 0, 0, 5_000)
       .createDefaultElectricalEnergyMeasurementClusterServer(0, 0)
       .addRequiredClusterServers();
 
     // EP1 child 3: Power Source Battery (MANDATORY per spec 14.4.6 revision 2)
-    const bsc2nd_ps = this.batteryStorageCombined.addChildDeviceType('Battery Pack', powerSource)
+    this.batteryStorageCombined.addChildDeviceType('Battery Pack', powerSource)
       .createDefaultPowerSourceReplaceableBatteryClusterServer(
         75,
         PowerSource.BatChargeLevel.Ok,
@@ -2670,13 +2670,13 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
     void this.batteryStorageCombined.setAttribute(PowerSource, 'batChargingCurrent', 27_000, this.batteryStorageCombined.log);
 
     // EP1 child 4: Electrical Sensor DC (MANDATORY per spec 14.4.6 revision 2)
-    const bsc2nd_es = this.batteryStorageCombined.addChildDeviceType('DC Battery Sensor', electricalSensor)
+    this.batteryStorageCombined.addChildDeviceType('DC Battery Sensor', electricalSensor)
       .createDefaultElectricalPowerMeasurementClusterServer(48_000, 0, 0, 3_000)
       .createDefaultElectricalEnergyMeasurementClusterServer(0, 0)
       .addRequiredClusterServers();
 
     // EP1 child 5: Device Energy Management (MANDATORY per spec 14.4.6)
-    const bsc_dem = this.batteryStorageCombined.addChildDeviceType('Battery Energy Mgmt', bridgedNode)
+    this.batteryStorageCombined.addChildDeviceType('Battery Energy Mgmt', bridgedNode)
       .createDefaultBridgedDeviceBasicInformationClusterServer(
         'Battery Energy Management',
         'BEM00050',
@@ -2687,7 +2687,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       .addRequiredClusterServers();
 
     // EP1 child 6: Temperature Sensor (OPTIONAL per spec 14.4.6)
-    const bsc_ts = this.batteryStorageCombined.addChildDeviceType('Battery Temperature', temperatureSensor)
+    this.batteryStorageCombined.addChildDeviceType('Battery Temperature', temperatureSensor)
       .createDefaultBridgedDeviceBasicInformationClusterServer(
         'Battery Temperature',
         'BT00050',
@@ -2698,7 +2698,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       .createDefaultTemperatureMeasurementClusterServer(2500, -1000, 6000)
       .addRequiredClusterServers();
 
-    this.batteryStorageCombined = (await this.addDevice(this.batteryStorageCombined)) as BatteryStorage | undefined;
+    this.batteryStorageCombined = await this.addDevice(this.batteryStorageCombined);
 
     // EP2 - Temperature Sensor (OPTIONAL system monitoring)
     this.temperatureSensorCombined = new MatterbridgeEndpoint([temperatureSensor, bridgedNode], { id: 'InverterTemperatureSensor' }, this.config.debug)
@@ -2712,11 +2712,11 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       .createDefaultTemperatureMeasurementClusterServer(2200, 0, 8000)
       .addRequiredClusterServers();
 
-    const its_ps = this.temperatureSensorCombined.addChildDeviceType('Sensor Power', powerSource)
+    this.temperatureSensorCombined.addChildDeviceType('Sensor Power', powerSource)
       .createDefaultPowerSourceReplaceableBatteryClusterServer(85, PowerSource.BatChargeLevel.Ok, 2850, 'AAA', 2, PowerSource.BatReplaceability.UserReplaceable)
       .addRequiredClusterServers();
 
-    const its_es = this.temperatureSensorCombined.addChildDeviceType('Sensor Electrical', electricalSensor)
+    this.temperatureSensorCombined.addChildDeviceType('Sensor Electrical', electricalSensor)
       .createDefaultElectricalPowerMeasurementClusterServer(3_300, 0, 0, 50)
       .createDefaultElectricalEnergyMeasurementClusterServer(0, 0)
       .addRequiredClusterServers();
@@ -2734,18 +2734,18 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
     });
 
     // EP3 child 1: Power Source DC (MANDATORY per spec 14.3.6)
-    const sp_ps = this.solarPowerCombined.addChildDeviceType('DC Input Power Source', powerSource)
+    this.solarPowerCombined.addChildDeviceType('DC Input Power Source', powerSource)
       .createDefaultPowerSourceWiredClusterServer()
       .addRequiredClusterServers();
 
     // EP3 child 2: Electrical Sensor DC (MANDATORY per spec 14.3.6, DirectCurrent feature)
-    const sp_es = this.solarPowerCombined.addChildDeviceType('DC Solar Output', electricalSensor)
+    this.solarPowerCombined.addChildDeviceType('DC Solar Output', electricalSensor)
       .createDefaultElectricalPowerMeasurementClusterServer(400_000, 0, 0, 6_000)
       .createDefaultElectricalEnergyMeasurementClusterServer(0, 0)
       .addRequiredClusterServers();
 
     // EP3 child 3: Device Energy Management (OPTIONAL per spec 14.3.6.1)
-    const sp_dem = this.solarPowerCombined.addChildDeviceType('Solar Energy Management', bridgedNode)
+    this.solarPowerCombined.addChildDeviceType('Solar Energy Management', bridgedNode)
       .createDefaultBridgedDeviceBasicInformationClusterServer(
         'Solar Energy Mgmt',
         'SEM00052',
@@ -2756,7 +2756,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       .addRequiredClusterServers();
 
     // EP3 child 4: Temperature Sensor (OPTIONAL per spec 14.3.6)
-    const sp_ts = this.solarPowerCombined.addChildDeviceType('Solar Temperature', temperatureSensor)
+    this.solarPowerCombined.addChildDeviceType('Solar Temperature', temperatureSensor)
       .createDefaultBridgedDeviceBasicInformationClusterServer(
         'Solar Panel Temperature',
         'SPT00052',
@@ -2767,7 +2767,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       .createDefaultTemperatureMeasurementClusterServer(2500, -2000, 8000)
       .addRequiredClusterServers();
 
-    this.solarPowerCombined = (await this.addDevice(this.solarPowerCombined)) as SolarPower | undefined;
+    this.solarPowerCombined = await this.addDevice(this.solarPowerCombined);
 
     // Register aggregator root
     if (this.solarBatteryRoot) {
@@ -2785,23 +2785,23 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
           // Simulate solar generation (0-6000W daily curve)
           const solarOutput = Math.floor(3000 * (1 + Math.sin(this.solarBatterySimulationPhase)));
           const solarCurrent = Math.floor((solarOutput / 400) * 1000);
-
-              // await this.solarPowerCombined?.setAttribute(ElectricalPowerMeasurement, 'activePower', solarOutput, this.solarPowerCombined?.log), this.log, 'Failed to set solar power');
-              // await this.solarPowerCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', solarCurrent, this.solarPowerCombined?.log), this.log, 'Failed to set solar current');
+          await this.solarPowerCombined?.setAttribute(ElectricalPowerMeasurement, 'activePower', solarOutput, this.solarPowerCombined?.log);
+          await this.solarPowerCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', solarCurrent, this.solarPowerCombined?.log);
 
           // Simulate battery charge/discharge
           const batteryPercent = Math.floor(50 + 25 * Math.sin(this.solarBatteryBatteryPhase));
           const chargeCurrent = Math.floor(27000 * Math.max(0, Math.sin(this.solarBatterySimulationPhase)));
-
-              // await this.batteryStorageCombined?.setAttribute(PowerSource, 'batPercentRemaining', batteryPercent, this.batteryStorageCombined?.log), this.log, 'Failed to set battery percent');
-              // await this.batteryStorageCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', chargeCurrent, this.batteryStorageCombined?.log), this.log, 'Failed to set charge current');
+          await this.batteryStorageCombined?.setAttribute(PowerSource, 'batPercentRemaining', batteryPercent, this.batteryStorageCombined?.log);
+          await this.batteryStorageCombined?.setAttribute(ElectricalPowerMeasurement, 'activeCurrent', chargeCurrent, this.batteryStorageCombined?.log);
 
           // Simulate temperature variations
           const batteryTempC = 27.5 + 7.5 * Math.sin(this.solarBatteryBatteryPhase);
-              // await this.temperatureSensorCombined?.setAttribute(TemperatureMeasurement, 'measuredValue', Math.floor(batteryTempC * 100), this.temperatureSensorCombined?.log), this.log, 'Failed to set battery temperature');
+          await this.batteryStorageCombined
+            ?.getChildEndpointById('BatteryTemperature')
+            ?.setAttribute(TemperatureMeasurement, 'measuredValue', Math.floor(batteryTempC * 100), this.batteryStorageCombined?.log);
 
           const inverterTempC = 30 + 15 * Math.sin(this.solarBatterySimulationPhase);
-              // await this.temperatureSensorCombined?.setAttribute(TemperatureMeasurement, 'measuredValue', Math.floor(inverterTempC * 100), this.temperatureSensorCombined?.log), this.log, 'Failed to set inverter temperature');
+          await this.temperatureSensorCombined?.setAttribute(TemperatureMeasurement, 'measuredValue', Math.floor(inverterTempC * 100), this.temperatureSensorCombined?.log);
         },
         5000,
       );
