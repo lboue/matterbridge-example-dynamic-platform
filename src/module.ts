@@ -2609,6 +2609,7 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       absMaxPower: 3_000_000, // 3 kWh
     });
     this.batteryStorage = await this.addDevice(this.batteryStorage);
+
     // *********************** Create a Combined Battery Storage + Solar Power System *****
     // Implements Figure 22 from Matter Device Library Specification (23-27351)
     // This is a Battery Storage device (0x0018) with DC-connected Solar Power device (0x0017)
@@ -2675,26 +2676,11 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       .createDefaultElectricalEnergyMeasurementClusterServer(0, 0)
       .addRequiredClusterServers();
 
-    // EP1 child 5: Device Energy Management (MANDATORY per spec 14.4.6)
-    this.batteryStorageCombined.addChildDeviceType('Battery Energy Mgmt', bridgedNode)
-      .createDefaultBridgedDeviceBasicInformationClusterServer(
-        'Battery Energy Management',
-        'BEM00050',
-        0xfff1,
-        'Matterbridge',
-        'Device Energy Management for Battery Storage'
-      )
-      .addRequiredClusterServers();
-
-    // EP1 child 6: Temperature Sensor (OPTIONAL per spec 14.4.6)
+    // EP1 child 5: Temperature Sensor (OPTIONAL per spec 14.4.6)
+    // Device Energy Management (MANDATORY per spec 14.4.6) is already exposed on the root BatteryStorage
+    // endpoint by the class itself; BridgedDeviceBasicInformation/BridgedNode are only valid on top-level
+    // bridged endpoints, so it must not be duplicated on a nested child here.
     this.batteryStorageCombined.addChildDeviceType('Battery Temperature', temperatureSensor)
-      .createDefaultBridgedDeviceBasicInformationClusterServer(
-        'Battery Temperature',
-        'BT00050',
-        0xfff1,
-        'Matterbridge',
-        'Temperature monitor for battery packs'
-      )
       .createDefaultTemperatureMeasurementClusterServer(2500, -1000, 6000)
       .addRequiredClusterServers();
 
@@ -2744,26 +2730,11 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
       .createDefaultElectricalEnergyMeasurementClusterServer(0, 0)
       .addRequiredClusterServers();
 
-    // EP3 child 3: Device Energy Management (OPTIONAL per spec 14.3.6.1)
-    this.solarPowerCombined.addChildDeviceType('Solar Energy Management', bridgedNode)
-      .createDefaultBridgedDeviceBasicInformationClusterServer(
-        'Solar Energy Mgmt',
-        'SEM00052',
-        0xfff1,
-        'Matterbridge',
-        'Device Energy Management for Solar Power'
-      )
-      .addRequiredClusterServers();
-
-    // EP3 child 4: Temperature Sensor (OPTIONAL per spec 14.3.6)
+    // EP3 child 3: Temperature Sensor (OPTIONAL per spec 14.3.6)
+    // Device Energy Management (OPTIONAL per spec 14.3.6.1) is already exposed on the root SolarPower
+    // endpoint by the class itself; BridgedDeviceBasicInformation/BridgedNode are only valid on top-level
+    // bridged endpoints, so it must not be duplicated on a nested child here.
     this.solarPowerCombined.addChildDeviceType('Solar Temperature', temperatureSensor)
-      .createDefaultBridgedDeviceBasicInformationClusterServer(
-        'Solar Panel Temperature',
-        'SPT00052',
-        0xfff1,
-        'Matterbridge',
-        'Temperature monitoring of solar inverter'
-      )
       .createDefaultTemperatureMeasurementClusterServer(2500, -2000, 8000)
       .addRequiredClusterServers();
 

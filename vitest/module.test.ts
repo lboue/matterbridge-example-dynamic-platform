@@ -151,7 +151,7 @@ describe('TestPlatform', () => {
     config.blackList = [];
 
     await dynamicPlatform.onStart('Test reason');
-    expect(dynamicPlatform.getDevices()).toHaveLength(81);  // +3 for Battery+Solar system
+    expect(dynamicPlatform.getDevices()).toHaveLength(82);  // +4 for Battery+Solar system
     expect(loggerLogSpy).toHaveBeenCalledWith(LogLevel.INFO, `Starting platform ${config.name} with reason: Test reason...`);
     expect(loggerLogSpy).not.toHaveBeenCalledWith(LogLevel.WARN, expect.anything());
     expect(loggerLogSpy).not.toHaveBeenCalledWith(LogLevel.ERROR, expect.anything());
@@ -159,7 +159,7 @@ describe('TestPlatform', () => {
   }, 60000);
 
   it('should execute the commandHandlers', async () => {
-    expect(dynamicPlatform.getDevices()).toHaveLength(81);  // +3 for Battery+Solar system
+    expect(dynamicPlatform.getDevices()).toHaveLength(82);  // +4 for Battery+Solar system
     const percentSettingSubscribers = new Set([dynamicPlatform.airPurifier, dynamicPlatform.fanDefault, dynamicPlatform.fanComplete, dynamicPlatform.airConditioner]);
     // Invoke command handlers
     for (const device of dynamicPlatform.getDevices()) {
@@ -876,7 +876,7 @@ describe('TestPlatform', () => {
 
   it('should call onConfigure', async () => {
     await dynamicPlatform.onConfigure();
-    expect(dynamicPlatform.getDevices()).toHaveLength(81);  // +3 for Battery+Solar system
+    expect(dynamicPlatform.getDevices()).toHaveLength(82);  // +4 for Battery+Solar system
     expect(loggerLogSpy).toHaveBeenCalledWith(LogLevel.INFO, `Configuring platform ${config.name}...`);
 
     await dynamicPlatform.executeIntervals(26, 10);
@@ -919,8 +919,8 @@ describe('TestPlatform', () => {
     expect(batteryStorage?.hasClusterServer(ElectricalPowerMeasurement.id)).toBe(true);
     expect(batteryStorage?.hasClusterServer(ElectricalEnergyMeasurement.id)).toBe(true);
 
-    // Verify Battery attributes
-    const batPercent = batteryStorage?.getAttribute(PowerSource.id, 'batPercentRemaining');
+    // Verify Battery attributes (batPercentRemaining lives on the 'Battery Pack' child endpoint, not the root)
+    const batPercent = batteryStorage?.getChildEndpointById('BatteryPack')?.getAttribute(PowerSource.id, 'batPercentRemaining');
     expect(batPercent).toBeDefined();
     expect(batPercent).toBeGreaterThanOrEqual(50);
     expect(batPercent).toBeLessThanOrEqual(75);
