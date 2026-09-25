@@ -908,8 +908,10 @@ describe('TestPlatform', () => {
     // Verify the root aggregator exists
     const solarBatteryRoot = dynamicPlatform.getDeviceByName('Battery + Solar System');
     expect(solarBatteryRoot).toBeDefined();
-    // Root aggregator has ElectricalPower and ElectricalEnergy clusters
-    expect(solarBatteryRoot?.hasClusterServer(ElectricalPowerMeasurement.id)).toBe(true);
+    // ElectricalPower/ElectricalEnergy clusters live on the 'System Electrical' child endpoint, not the root:
+    // Aggregator/BridgedNode don't allow those clusters directly per the Matter spec (TC_DeviceConformance).
+    expect(solarBatteryRoot?.getChildEndpointById('SystemElectrical')?.hasClusterServer(ElectricalPowerMeasurement.id)).toBe(true);
+    expect(solarBatteryRoot?.getChildEndpointById('SystemElectrical')?.hasClusterServer(ElectricalEnergyMeasurement.id)).toBe(true);
 
     // Verify EP1 - Battery Storage exists with children
     const batteryStorage = dynamicPlatform.getDeviceByName('Home Battery Storage');

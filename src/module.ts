@@ -2624,6 +2624,15 @@ export class ExampleMatterbridgeDynamicPlatform extends MatterbridgeDynamicPlatf
         'Matterbridge',
         'Matter 1.6.1 compliant Battery Storage with DC-connected Solar Power',
       )
+      .addRequiredClusterServers();
+
+    // EP0 child: Electrical Sensor for overall system measurement. ElectricalEnergyMeasurement/
+    // ElectricalPowerMeasurement are not in the Aggregator's or BridgedNode's allowed server cluster list, so
+    // TC_DeviceConformance flags them as extra clusters when attached directly on the root; move them onto a
+    // child endpoint typed ElectricalSensor instead, matching the pattern used by the other sensor children
+    // below (e.g. AC Output Sensor, DC Battery Sensor).
+    this.solarBatteryRoot
+      .addChildDeviceType('System Electrical', electricalSensor)
       .createDefaultElectricalEnergyMeasurementClusterServer(0, 0)
       .createDefaultElectricalPowerMeasurementClusterServer(230_000, 0, 0, 10_000)
       .addRequiredClusterServers();
