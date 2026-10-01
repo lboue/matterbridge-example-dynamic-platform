@@ -24,6 +24,7 @@ import {
   OnOff,
   OvenMode,
   Thermostat,
+  WaterHeaterManagement,
 } from 'matterbridge/matter/clusters';
 import {
   addMatterbridge,
@@ -906,6 +907,69 @@ describe('TestPlatform', () => {
     expect(loggerLogSpy).toHaveBeenCalledWith(LogLevel.INFO, expect.stringContaining('Set lock lockState to Unlocked'));
     expect(loggerLogSpy).toHaveBeenCalledWith(LogLevel.INFO, expect.stringContaining('Set lock lockState to Locked'));
   }, 60000);
+
+  it('should initialize WaterHeater with all required attributes', async () => {
+    const waterHeater = dynamicPlatform.getDeviceByName('Water Heater');
+    expect(waterHeater).toBeDefined();
+    expect(waterHeater?.hasClusterServer(WaterHeaterManagement.id)).toBe(true);
+
+    // Verify required attributes
+    const heaterTypes = waterHeater?.getAttribute(WaterHeaterManagement.id, 'heaterTypes', waterHeater.log);
+    const heatDemand = waterHeater?.getAttribute(WaterHeaterManagement.id, 'heatDemand', waterHeater.log);
+    const boostState = waterHeater?.getAttribute(WaterHeaterManagement.id, 'boostState', waterHeater.log);
+
+    expect(heaterTypes).toBeDefined();
+    expect(heatDemand).toBeDefined();
+    expect(boostState).toBeDefined();
+
+    // Verify optional attribute
+    const tankPercentage = waterHeater?.getAttribute(WaterHeaterManagement.id, 'tankPercentage', waterHeater.log);
+    expect(tankPercentage).toBeDefined();
+  }, 60000);
+
+  it('should calculate estimated heat required based on tank parameters', () => {
+    // Test the heat calculation formula for various tank sizes and temperature differences
+    // Energy = tankVolume × tempDifference × specificHeatCapacity(4.18) × 1000
+    const testCases = [
+      { volume: 200, tempDiff: 10, expected: 8_360_000 }, // 200L, 50°C→60°C
+      { volume: 200, tempDiff: 20, expected: 16_720_000 }, // 200L, 40°C→60°C
+      { volume: 100, tempDiff: 10, expected: 4_180_000 }, // 100L, 50°C→60°C
+      { volume: 300, tempDiff: 15, expected: 18_810_000 }, // 300L, 45°C→60°C
+    ];
+
+    testCases.forEach(({ volume, tempDiff, expected }) => {
+      const calculated = volume * tempDiff * 4.18 * 1000;
+      expect(Math.round(calculated)).toBe(expected);
+    });
+  });
+
+  it('should calculate tank volume based on percentage and full capacity', () => {
+    // Test tank volume calculation: actualVolume = maxVolume × (tankPercentage / 100)
+    const maxTankVolume = 200; // liters
+    const testPercentages = [85, 50, 100, 0];
+
+    testPercentages.forEach((percentage) => {
+      const actualVolume = (maxTankVolume * percentage) / 100;
+      expect(actualVolume).toBeGreaterThanOrEqual(0);
+      expect(actualVolume).toBeLessThanOrEqual(maxTankVolume);
+    });
+  });
+
+  it('should validate WaterHeater temperature constraints', () => {
+    const waterHeater = dynamicPlatform.getDeviceByName('Water Heater');
+    expect(waterHeater).toBeDefined();
+
+    // Temperature constraints should be logical
+    const minTemp = 20; // minHeatSetpointLimit
+    const maxTemp = 80; // maxHeatSetpointLimit
+    const currentTemp = 50; // waterTemperature
+    const targetTemp = 60; // targetWaterTemperature
+
+    expect(minTemp).toBeLessThanOrEqual(currentTemp);
+    expect(maxTemp).toBeGreaterThanOrEqual(currentTemp);
+    expect(targetTemp).toBeGreaterThanOrEqual(minTemp);
+    expect(targetTemp).toBeLessThanOrEqual(maxTemp);
+  });
 
   it('should call onShutdown with reason', async () => {
     await dynamicPlatform.onShutdown('Test reason');

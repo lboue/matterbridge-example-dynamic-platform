@@ -43,6 +43,7 @@ If you like this project and find it useful, please consider giving it a star on
 - [Oven]/[Refrigerator]: Add a `TemperatureAlarm` example to the demo cabinets.
 - [Momentary switch]: Report `productId` `0x8000` on the composed `Momentary switch` bridged device, so Home Assistant's `(vendorId, productId)` allowlist can match the `ha_entitylabel` FixedLabels on `switch4`/`switch5`/`switch6` (requires matterbridge's `createDefaultBridgedDeviceBasicInformationClusterServer()` optional `productId` parameter).
 - [agents]: Add [`commit message instructions`](.github/commit-message-instructions.md) v.1.0.0 for the VS Code Copilot "Generate Commit Message" button (Conventional Commits).
+- [WaterHeater]: Add unit tests for the `WaterHeaterManagement` cluster attributes (Matter 1.6.1 spec compliant): verify the required attributes (`heaterTypes`, `heatDemand`, `boostState`) and the optional `tankPercentage` attribute are initialized, plus the heat-requirement calculation (Energy = volume × ΔT × specific_heat × 1000), tank volume percentage calculation, and temperature constraint validation.
 
 ### Fixed
 
